@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import amqp from 'amqplib'
 import nodemailer from 'nodemailer'
-await async function startSendOtpConsumer(){
+export  async function startSendOtpConsumer(){
     try{
         const connection = await amqp.connect({
                    protocol:"amqp",
@@ -20,7 +20,7 @@ await async function startSendOtpConsumer(){
                 try{
                     const {to , subject , body} = JSON.parse(msg.content.toString())
                     const transporter = nodemailer.createTransport({
-                        host:"smtp.gamil.com",
+                        host:"smtp.gmail.com",
                         port:465,
                         auth:{
                             user:process.env.USER,
