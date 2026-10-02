@@ -105,3 +105,17 @@ export async function updateName(req,resp){
    return resp.status(500).json({message:"Internal Server Error",error:error.message})
   }
 }
+
+export async function getAllUser(req,resp){
+  try{
+    const ALLUser = await User.find()  
+    if(ALLUser){
+      return resp.status(200).json({message:"All User Get",ALLUser})
+    }
+  }
+  catch(error){
+     return resp.status(500).json({message:"Internal Server Error",error:error.message})
+
+  }
+}
+
