@@ -60,6 +60,12 @@ export async function verifyUser(req,resp){
       {expiresIn:'7d'}
     )
     resp.cookie("token",token)
+    const message = {
+        to:email,
+        subject:"Welcome to ChatAPP",
+        body:` Welcome to ChatAPP`
+      }
+      await publishToQueue("welcome-email",message)
     return resp.status(200).json({message:"User Verified",user})
   }
   catch(error){
