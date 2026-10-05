@@ -183,6 +183,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .first-message-hint { margin: 40px auto; color: #9aa39e; font-size: 11px; text-align: center; }
 .chat-inline-error { width: fit-content; max-width: 90%; margin: 15px auto; padding: 8px 12px; border: 1px solid #f0ceca; border-radius: 8px; color: #a54040; background: #fff7f6; font-size: 11px; }
 .composer { flex: 0 0 auto; min-width: 0; padding: 13px clamp(18px, 4vw, 55px) 11px; border-top: 1px solid #ebefeb; background: #fff; }
+.typing-indicator { display: block; width: min(100%, 850px); margin: 0 auto 5px; color: #168a70; font-size: 10px; }
 .composer-row { display: flex; align-items: center; gap: 9px; width: min(100%, 850px); min-height: 50px; margin: auto; padding: 5px 6px 5px 10px; border: 1px solid #e9eeea; border-radius: 12px; background: #fbfcfb; }
 .attach-button { color: #84938c; }
 .message-input { flex: 1; min-width: 0; min-height: 38px; max-height: 112px; padding: 10px 0; border: 0; outline: 0; resize: none; overflow-y: auto; color: #33413b; background: transparent; font-size: 12px; line-height: 18px; }
