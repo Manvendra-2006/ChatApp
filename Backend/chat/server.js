@@ -1,7 +1,7 @@
 import 'dotenv/config'
-import app from "./app.js";
 import { connectDB } from './config/db.js';
+import { server } from './config/socketIo.js';
 connectDB()
-app.listen(process.env.PORT,()=>{
+server.listen(process.env.PORT,()=>{
     console.log(`Server is running on port ${process.env.PORT}`)
 })
