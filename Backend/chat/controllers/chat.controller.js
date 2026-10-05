@@ -2,6 +2,7 @@ import Chat from "../models/chat.model.js"
 import Message from "../models/message.model.js"
 import axios from "axios"
 import getBuffer from "../config/datauri.js"
+import { getRecieverSocketId, io } from "../config/socketIo.js"
 // ye controller chat create karta hain two different logged in user ke 
 export async function createaNewChat(req, resp) {
     try {
@@ -28,6 +29,7 @@ export async function createaNewChat(req, resp) {
 // ye controller logged-in user ke saare chats laata hain , har chat mein saamne wale user ke data aur unseen vale messages ko count karta hain 
 export async function getAllChats(req, resp) {
     try {
+        console.log("errror yaha hain be")
         const userId = req.user?.id
         if (!userId) {
             return resp.status(400).json({ message: "UserId is required" })
@@ -115,9 +117,17 @@ export async function sendMessage(req, resp) {
             return resp.status(400).json({ message: "No other users" })
         }
         // socket setup
+        const receiverSocketId = getRecieverSocketId(otheruserid.toString())
+        let isRecieverInChatRoom = false
+        if(receiverSocketId){ // agar user online hain 
+            const receiverSocket = io.sockets.sockets.get(receiverSocketId) // reciever ka actual socket object nikalana 
+            if(receiverSocket && receiverSocket.rooms.has(chatId)){
+                isRecieverInChatRoom = true
+            }
+        }
         let messageData = {
-            seen: false,
-            seenAt: undefined,
+            seen: isRecieverInChatRoom,
+            seenAt: isRecieverInChatRoom ? new Date() :undefined,
             sender: senderId,
             chatId: chatId
         }
@@ -141,6 +151,23 @@ export async function sendMessage(req, resp) {
             },
             updatedAt: new Date()  // chat update hoga toh ye new time aayega 
         }, { new: true })
+       // A+B ki conversation = A aur B ki private conversation. C ko us room mein join nahi karna chahiye aur backend bhi C ko messages access nahi karne dena chahiye.
+        io.to(chatId).emit("newMessage",message)
+        if(receiverSocketId){
+            io.to(receiverSocketId).emit("newMessage",message)
+        }
+        const senderSocketId = getRecieverSocketId(senderId.toString())
+        if(senderSocketId){
+            io.to(senderSocketId).emit("newMessage",message)
+        }
+        // Receiver ne dekh liya → Sender ko batao
+        if(isRecieverInChatRoom && senderSocketId){
+            io.to(senderSocketId).emit("messageSeen",{
+                chatId:chatId,
+                seenBy:otheruserid,
+                messageIds:[message._id]
+            })
+        }
         return resp.status(201).json({ message: "message Saved Successfully", message, senderId: senderId })
     }
     catch (error) {
@@ -186,7 +213,18 @@ export async function getMessagesByChat(req, resp) {
             return resp.status(400).json({ message: "You are not particiapnat of this chat " })
         }
         try {
-            const { data } = await axios.get(`${process.env.USER_SERVICE}/api/user/getUserDetail/${otheruserid}`)          
+            const { data } = await axios.get(`${process.env.USER_SERVICE}/api/user/getUserDetail/${otheruserid}`)   
+            //B jab chat open karta hai, B ke unread messages ko seen mark karke Socket.IO se A ko bataya jaata hai ki B ne kaun-kaun se messages dekh liye.
+            if(messagesTomarkSeen.length>0)       {
+                const otherUserSocketId = getRecieverSocketId(otheruserid.toString())
+                if(otherUserSocketId){
+                    io.to(otherUserSocketId).emit("messageSeen",{
+                        chatId:chatId,
+                        seenBy:userId,
+                        messageIds:messagesTomarkSeen.map((msg)=> msg._id)
+                    })
+                }
+            }
             return resp.status(200).json({message:" other dataUser  and all messages in a chat",messages,user:data})
         }
         catch (error) {
