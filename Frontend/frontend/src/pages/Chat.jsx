@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Avatar from '../components/Avatar'
 import Icon from '../components/Icon'
@@ -101,9 +101,16 @@ export default function Chat() {
   const typingChatIdRef = useRef(null)
   const handledMessageIdsRef = useRef(new Set())
   const selectedChatId = selected?.chat?._id
+  const selectedChatIdRef = useRef(selectedChatId)
+  const userIdRef = useRef(user?._id)
   const peerOnline = Boolean(
     selected?.peer?._id && onlineUserIds.some((userId) => String(userId) === String(selected.peer._id)),
   )
+
+  useLayoutEffect(() => {
+    selectedChatIdRef.current = selectedChatId
+    userIdRef.current = user?._id
+  }, [selectedChatId, user?._id])
 
   const loadConversations = useCallback(async () => {
     const result = await fetchChats()
@@ -161,8 +168,8 @@ export default function Chat() {
     const handleIncomingMessage = (message) => {
       if (!message?.chatId) return
       const messageId = String(message._id)
-      const isCurrentConversation = String(message.chatId) === String(selectedChatId)
-      const isFromCurrentUser = String(message.sender) === String(user?._id)
+      const isCurrentConversation = String(message.chatId) === String(selectedChatIdRef.current)
+      const isFromCurrentUser = String(message.sender) === String(userIdRef.current)
 
       setMessages((currentMessages) => {
         if (currentMessages.some((item) => String(item._id) === messageId)) {
@@ -245,7 +252,7 @@ export default function Chat() {
       socket.off('newMessage', handleIncomingMessage)
       socket.off('messageSeen', handleMessageSeen)
     }
-  }, [selectedChatId, socket, user?._id])
+  }, [socket])
 
   const stopTyping = useCallback((chatId) => {
     const targetChatId = chatId || typingChatIdRef.current
