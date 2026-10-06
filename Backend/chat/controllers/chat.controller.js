@@ -44,7 +44,7 @@ export async function getAllChats(req, resp) {
                     seen: false
                 })
                 try {
-                    const { data } = await axios.get(`${process.env.USER_SERVICE}/api/user/getUserDetail/${otheruserId}`)
+                    const { data } = await axios.get(`${process.env.USER_SERVICE}/getUserDetail/${otheruserId}`)
                     return {
                         user: data,
                         chat: {
