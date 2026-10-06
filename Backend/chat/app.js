@@ -4,7 +4,7 @@ import chatRouter from './routes/chat.routes.js'
 import { app } from './config/socketIo.js'
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: "https://chat-app-wine-six-41.vercel.app",
   credentials: true
 }));
 app.use(express.json())
