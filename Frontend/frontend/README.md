@@ -10,11 +10,11 @@ The backend CORS configuration currently permits `http://localhost:5173`; keep V
 
 ## Backend routes used
 
-- User: `POST /api/user/login`, `POST /api/user/verify`, `GET /api/user/account`, `PATCH /api/user/update`, `GET /api/user/AllUser`.
+- User: `POST /api/user/login`, `POST /api/user/verify`, `POST /api/user/logout`, `GET /api/user/account`, `PATCH /api/user/update`, `GET /api/user/AllUser`.
 - Chat: `POST /api/chat/newchat`, `GET /api/chat/getALlChats`, `GET /api/chat/getMessagesByChat/:chatId`, `POST /api/chat/sendMessage`.
 
-The OTP verification API returns `{ message, user }` and sets the signed JWT in a browser-readable `token` cookie; the token is not included in the JSON response. After verification, the frontend copies this cookie value into `localStorage` under `token`. The centralized API client sends it as `Authorization: Bearer <token>`, a format accepted by the backend authentication middleware, and continues to include credentials for the cookie.
+The OTP verification API returns `{ message, user }` and sets the signed JWT in an `HttpOnly` cookie named `token`. The frontend never reads or stores the JWT; authenticated requests use `credentials: "include"` so the browser sends the cookie automatically. Sign-out posts to `/api/user/logout`, which clears the server-set cookie.
 
-Use the same host name for the frontend and both backend service URLs (for example, `localhost`, not a mix of `localhost` and `127.0.0.1`) so the frontend can read the cookie issued by the API. On page refresh, the frontend restores the account from `GET /api/user/account` using the saved token; an expired token is cleared, while temporary API/network errors show a retry state instead of signing the user out. The current API has no signup, logout, dedicated user-search, or avatar endpoints. New accounts are created during successful OTP verification; people search filters the authenticated all-users response. Sign-out clears only the auth token and browser cookie because the backend does not expose a logout route. Images are sent only through the chat message endpoint.
+The backend cookie is `HttpOnly`, `Secure`, and `SameSite=None` for cross-origin requests. On page refresh, the frontend restores the account from `GET /api/user/account` using the browser-managed cookie; an expired session returns the user to sign-in, while temporary API/network errors show a retry state. New accounts are created during successful OTP verification; people search filters the authenticated all-users response. Images are sent only through the chat message endpoint.
 
 Chat lists, people, and message history load over REST. No polling or socket events are used.

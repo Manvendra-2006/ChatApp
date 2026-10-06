@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AuthContext } from './AuthContextValue'
 import {
-  clearAuthToken,
-  getCookieToken,
-  restoreStoredToken,
-  storeAuthToken,
-} from '../auth/tokenStorage'
-import { fetchAccount, verifyOtp as verifyOtpRequest } from '../services/authService'
+  fetchAccount,
+  logout as logoutRequest,
+  verifyOtp as verifyOtpRequest,
+} from '../services/authService'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -16,18 +14,11 @@ export function AuthProvider({ children }) {
   const refreshAccount = useCallback(async () => {
     setAuthError('')
     try {
-      const token = restoreStoredToken()
-      if (!token) {
-        setUser(null)
-        return null
-      }
-
       const data = await fetchAccount()
       setUser(data?.account || null)
       return data?.account || null
     } catch (error) {
       if (error.status === 401) {
-        clearAuthToken()
         setUser(null)
         return null
       }
@@ -44,17 +35,8 @@ export function AuthProvider({ children }) {
 
   const verify = async (email, otp) => {
     const data = await verifyOtpRequest(email, otp)
-    const token = getCookieToken()
-    if (!token) {
-      throw new Error(
-        'Your code was verified, but the browser could not read the session cookie. Open ChatApp and the backend with the same host name (for example, localhost).',
-      )
-    }
-    storeAuthToken(token)
-
     const verifiedUser = data?.user || null
     if (!verifiedUser) {
-      clearAuthToken()
       throw new Error('Your code was verified, but the server did not return your account.')
     }
     setAuthError('')
@@ -62,8 +44,8 @@ export function AuthProvider({ children }) {
     return verifiedUser
   }
 
-  const logout = () => {
-    clearAuthToken()
+  const logout = async () => {
+    await logoutRequest()
     sessionStorage.removeItem('chatapp-otp-email')
     sessionStorage.removeItem('chatapp-otp-requested-at')
     setAuthError('')

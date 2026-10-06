@@ -429,9 +429,14 @@ export default function Chat() {
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login', { replace: true })
+  const handleLogout = async () => {
+    setError('')
+    try {
+      await logout()
+      navigate('/login', { replace: true })
+    } catch (logoutError) {
+      setError(logoutError.message)
+    }
   }
 
   return (
