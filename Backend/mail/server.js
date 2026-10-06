@@ -1,8 +1,21 @@
-import 'dotenv/config'
-import app from "./app.js";
-import { startSendOtpConsumer,startsendEmailLogin } from './consumer.js';
-startSendOtpConsumer()
-startsendEmailLogin()
-app.listen(process.env.PORT,()=>{
-    console.log(`Server is running on port ${process.env.PORT}`)
-})
+import express from "express";
+import {
+  startSendOtpConsumer,
+  startsendEmailLogin,
+} from "./consumer.js";
+
+const app = express();
+
+const PORT = process.env.PORT || 2000;
+
+app.get("/", (req, res) => {
+  res.send("Mail Service is running");
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+
+// Start RabbitMQ consumers
+startSendOtpConsumer();
+startsendEmailLogin();
