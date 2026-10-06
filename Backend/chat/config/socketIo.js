@@ -5,7 +5,7 @@ const app = express()
 const server = http.createServer(app) // ye HTTP server h 
 const io = new Server(server,{ // ye existing HTTP server ke upar Socket.io server create karta hain 
     cors:{
-       origin: "http://localhost:5173",
+       origin: "https://chat-app-wine-six-41.vercel.app",
     methods: ["GET", "POST"],
     credentials: true
     }

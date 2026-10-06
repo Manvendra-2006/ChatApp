@@ -6,6 +6,7 @@ import './app.js'
 // app.js ka code (cors, express.json(), routes) kabhi run hi nahi hota, 
 // isliye Express app pe koi middleware ya route register nahi hua. Browser ka OPTIONS preflight request bina CORS headers ke 404 le leta hai, aur wahi preflight error hai.
 connectDB()
+
 server.listen(process.env.PORT,()=>{
     console.log(`Server is running on port ${process.env.PORT}`)
 })
