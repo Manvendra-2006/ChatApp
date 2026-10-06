@@ -3,14 +3,15 @@ import amqp from 'amqplib'
 import nodemailer from 'nodemailer'
 export async function startSendOtpConsumer() {
     try {
-        const connection = await amqp.connect({
-            protocol: "amqp",
-            hostname: process.env.RabbitMQ_host,
-            port: process.env.RabbitMQ_Communication_Port,
-            username: process.env.RabbitMQ_Username,
-            password: process.env.RabbitMQ_Password
-        })
-
+        // For Docker 
+        // const connection = await amqp.connect({
+        //     protocol: "amqp",
+        //     hostname: process.env.RabbitMQ_host,
+        //     port: process.env.RabbitMQ_Communication_Port,
+        //     username: process.env.RabbitMQ_Username,
+        //     password: process.env.RabbitMQ_Password
+        // })
+        const connection = await amqp.connect(process.env.RABBITMQ_URL);
         connection.on("error", (err) => console.log("RabbitMQ connection error:", err.message))
         connection.on("close", () => console.log("RabbitMQ connection closed"))
 
@@ -56,13 +57,15 @@ export async function startSendOtpConsumer() {
 }
 export async function startsendEmailLogin(){
         try{
-             const connection = await amqp.connect({
-            protocol: "amqp",
-            hostname: process.env.RabbitMQ_host,
-            port: process.env.RabbitMQ_Communication_Port,
-            username: process.env.RabbitMQ_Username,
-            password: process.env.RabbitMQ_Password
-        })
+            // for Docker Only
+        //      const connection = await amqp.connect({
+        //     protocol: "amqp",
+        //     hostname: process.env.RabbitMQ_host,
+        //     port: process.env.RabbitMQ_Communication_Port,
+        //     username: process.env.RabbitMQ_Username,
+        //     password: process.env.RabbitMQ_Password
+        // })
+                const connection = await amqp.connect(process.env.RABBITMQ_URL);
          connection.on("error", (err) => console.log("RabbitMQ connection error:", err.message))
         connection.on("close", () => console.log("RabbitMQ connection closed"))
 
