@@ -4,13 +4,15 @@ let channel ;
 
 export async function connectRabbitMQ(){
     try{
-        const connection = await amqp.connect({
-            protocol:"amqp",
-            hostname:process.env.RabbitMQ_host,
-            port:process.env.RabbitMQ_Communication_Port,
-            username:process.env.RabbitMQ_Username,
-            password:process.env.RabbitMQ_Password
-        })
+        // for Docker 
+        // const connection = await amqp.connect({
+        //     protocol:"amqp",
+        //     hostname:process.env.RabbitMQ_host,
+        //     port:process.env.RabbitMQ_Communication_Port,
+        //     username:process.env.RabbitMQ_Username,
+        //     password:process.env.RabbitMQ_Password
+        // })
+        const connection = await amqp.connect(process.env.RABBITMQ_URL);
         channel = await connection.createChannel()
         console.log("RabbitMQ is successfully connected ✔️")
     }
