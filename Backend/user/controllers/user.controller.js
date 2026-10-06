@@ -59,7 +59,7 @@ export async function verifyUser(req,resp){
       process.env.JWT_TOKEN,
       {expiresIn:'7d'}
     )
-    res.cookie("token", token, {
+    resp.cookie("token", token, {
   httpOnly: true,
   secure: true,
   sameSite: "none",
