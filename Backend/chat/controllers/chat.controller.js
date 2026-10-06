@@ -2,7 +2,7 @@ import Chat from "../models/chat.model.js"
 import Message from "../models/message.model.js"
 import axios from "axios"
 import getBuffer from "../config/datauri.js"
-import { getRecieverSocketId, io } from "../config/socketIo.js"
+import { getReceiverSocketId, io } from "../config/socketIo.js"
 // ye controller chat create karta hain two different logged in user ke 
 export async function createaNewChat(req, resp) {
     try {
@@ -117,7 +117,7 @@ export async function sendMessage(req, resp) {
             return resp.status(400).json({ message: "No other users" })
         }
         // socket setup
-        const receiverSocketId = getRecieverSocketId(otheruserid.toString())
+        const receiverSocketId = getReceiverSocketId(otheruserid.toString())
         let isRecieverInChatRoom = false
         if(receiverSocketId){ // agar user online hain 
             const receiverSocket = io.sockets.sockets.get(receiverSocketId) // reciever ka actual socket object nikalana 
@@ -156,7 +156,7 @@ export async function sendMessage(req, resp) {
         if(receiverSocketId){
             io.to(receiverSocketId).emit("newMessage",message)
         }
-        const senderSocketId = getRecieverSocketId(senderId.toString())
+        const senderSocketId = getReceiverSocketId(senderId.toString())
         if(senderSocketId){
             io.to(senderSocketId).emit("newMessage",message)
         }
@@ -216,7 +216,7 @@ export async function getMessagesByChat(req, resp) {
             const { data } = await axios.get(`${process.env.USER_SERVICE}/api/user/getUserDetail/${otheruserid}`)   
             //B jab chat open karta hai, B ke unread messages ko seen mark karke Socket.IO se A ko bataya jaata hai ki B ne kaun-kaun se messages dekh liye.
             if(messagesTomarkSeen.length>0)       {
-                const otherUserSocketId = getRecieverSocketId(otheruserid.toString())
+                const otherUserSocketId = getReceiverSocketId(otheruserid.toString())
                 if(otherUserSocketId){
                     io.to(otherUserSocketId).emit("messageSeen",{
                         chatId:chatId,
