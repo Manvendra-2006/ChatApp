@@ -1,8 +1,13 @@
 import "dotenv/config";
-import app from "./app.js";
+import http from "http";
+import app, { socketProxy } from "./app.js";
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+
+server.on("upgrade", socketProxy.upgrade);
+
+server.listen(PORT, () => {
   console.log(`Gateway running on port ${PORT}`);
 });

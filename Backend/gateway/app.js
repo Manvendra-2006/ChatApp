@@ -19,7 +19,8 @@ app.use(
 
 app.use(cookieParser());
 
-// User Service
+// ================= USER SERVICE =================
+
 app.use(
   "/api/user",
   createProxyMiddleware({
@@ -29,7 +30,8 @@ app.use(
   })
 );
 
-// Chat Service
+// ================= CHAT SERVICE =================
+
 app.use(
   "/api/chat",
   createProxyMiddleware({
@@ -38,7 +40,18 @@ app.use(
   })
 );
 
-// Mail Service
+// ================= SOCKET.IO =================
+
+const socketProxy = createProxyMiddleware({
+  target: CHAT_SERVICE,
+  changeOrigin: true,
+  ws: true,
+});
+
+app.use("/socket.io", socketProxy);
+
+// ================= MAIL SERVICE =================
+
 app.use(
   "/api/mail",
   createProxyMiddleware({
@@ -47,7 +60,8 @@ app.use(
   })
 );
 
-// Utility Service
+// ================= UTILITY SERVICE =================
+
 app.use(
   "/api/upload",
   createProxyMiddleware({
@@ -56,4 +70,5 @@ app.use(
   })
 );
 
+export { socketProxy };
 export default app;
