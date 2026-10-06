@@ -99,6 +99,7 @@ export default function Chat() {
   const messageInputRef = useRef(null)
   const typingTimeoutRef = useRef(null)
   const typingChatIdRef = useRef(null)
+  const handledMessageIdsRef = useRef(new Set())
   const selectedChatId = selected?.chat?._id
   const peerOnline = Boolean(
     selected?.peer?._id && onlineUserIds.some((userId) => String(userId) === String(selected.peer._id)),
@@ -175,34 +176,48 @@ export default function Chat() {
         return isCurrentConversation ? [...currentMessages, message] : currentMessages
       })
 
-      setConversations((currentConversations) => currentConversations.map((conversation) => {
-        if (String(conversation.chat._id) !== String(message.chatId)) {
-          return conversation
-        }
+      const isFirstDelivery = messageId && !handledMessageIdsRef.current.has(messageId)
+      if (messageId && isFirstDelivery) {
+        handledMessageIdsRef.current.add(messageId)
+      }
 
-        const nextLatestMessage = {
-          text: message.image?.url ? 'Image' : message.text || 'Image',
-          sender: message.sender,
-        }
+      setConversations((currentConversations) => {
+        const conversationIndex = currentConversations.findIndex(
+          (conversation) => String(conversation.chat._id) === String(message.chatId),
+        )
+        if (conversationIndex === -1) return currentConversations
 
-        return {
+        const conversation = currentConversations[conversationIndex]
+        const currentUnseenCount = Number(conversation.chat.unseenCount) || 0
+        const shouldIncrementUnseen = isFirstDelivery &&
+          !isCurrentConversation &&
+          !isFromCurrentUser &&
+          !message.seen
+        const updatedConversation = {
           ...conversation,
           chat: {
             ...conversation.chat,
-            latestMessage: nextLatestMessage,
+            latestMessage: {
+              text: message.image?.url ? 'Image' : message.text || 'Image',
+              sender: message.sender,
+            },
             updatedAt: message.createdAt || new Date().toISOString(),
-            unseenCount: isCurrentConversation || isFromCurrentUser
-              ? conversation.chat.unseenCount || 0
-              : (conversation.chat.unseenCount || 0) + 1,
+            unseenCount: isCurrentConversation
+              ? 0
+              : currentUnseenCount + (shouldIncrementUnseen ? 1 : 0),
           },
         }
-      }))
+
+        return [
+          updatedConversation,
+          ...currentConversations.filter((_, index) => index !== conversationIndex),
+        ]
+      })
     }
 
     const handleMessageSeen = ({ chatId, messageIds = [] }) => {
       if (!chatId || !Array.isArray(messageIds)) return
       const normalizedIds = messageIds.map((id) => String(id))
-      const isCurrentConversation = String(chatId) === String(selectedChatId)
 
       setMessages((currentMessages) => currentMessages.map((message) =>
         normalizedIds.includes(String(message._id))
@@ -210,21 +225,17 @@ export default function Chat() {
           : message,
       ))
 
-      if (!isCurrentConversation) {
-        setConversations((currentConversations) => currentConversations.map((conversation) => {
-          if (String(conversation.chat._id) !== String(chatId)) {
-            return conversation
-          }
-
-          return {
-            ...conversation,
-            chat: {
-              ...conversation.chat,
-              unseenCount: 0,
-            },
-          }
-        }))
-      }
+      setConversations((currentConversations) => currentConversations.map((conversation) =>
+        String(conversation.chat._id) === String(chatId)
+          ? {
+              ...conversation,
+              chat: {
+                ...conversation.chat,
+                unseenCount: 0,
+              },
+            }
+          : conversation,
+      ))
     }
 
     socket.on('newMessage', handleIncomingMessage)
@@ -356,7 +367,15 @@ export default function Chat() {
   }, [debouncedSearch, users, user?._id])
 
   const openConversation = (conversation) => {
-    setSelected(conversation)
+    setSelected({
+      ...conversation,
+      chat: { ...conversation.chat, unseenCount: 0 },
+    })
+    setConversations((currentConversations) => currentConversations.map((current) =>
+      String(current.chat._id) === String(conversation.chat._id)
+        ? { ...current, chat: { ...current.chat, unseenCount: 0 } }
+        : current,
+    ))
     setError('')
     setSearchText('')
     setVisibleOnMobile(true)
