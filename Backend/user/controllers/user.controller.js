@@ -96,6 +96,15 @@ export async function fetchAccount(req,resp){
   }
 }
 
+export function logoutController(_req, resp) {
+  resp.clearCookie("token", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+  })
+  return resp.status(200).json({ message: "Logged out successfully" })
+}
+
 export async function updateName(req,resp){
   try{
     const userId = req.user.id
