@@ -17,5 +17,6 @@ cloudinary.v2.config({
     api_secret:CLOUD_SECRET_KEY
 })
 
+app.get("/health",(_req,res)=>res.json({status:"ok"}))
 app.use("/api",router)
 export default app
