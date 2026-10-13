@@ -113,9 +113,9 @@ import "dotenv/config";
 import amqp from "amqplib";
 import nodemailer from "nodemailer";
 
-
+// ======================================================
 // 1. CREATE ONE SMTP TRANSPORTER
-
+// ======================================================
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -129,8 +129,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// ======================================================
 // 2. VERIFY SMTP CONNECTION
-
+// ======================================================
 
 async function verifySMTP() {
   try {
@@ -141,7 +142,9 @@ async function verifySMTP() {
   }
 }
 
+// ======================================================
 // 3. GENERIC CONSUMER WITH AUTO-RECONNECT
+// ======================================================
 // Before: on "close" it only logged, so after the first dropped
 // RabbitMQ connection (idle timeout / Render restart) the mail
 // service stayed running but NEVER consumed again -> no OTP mail.
@@ -230,6 +233,10 @@ function startConsumer(queueName, label) {
 
   return run();
 }
+
+// ======================================================
+// 4. EXPORTS (same names as before, so server.js is unchanged)
+
 
 export function startSendOtpConsumer() {
   return startConsumer("send-otp", "OTP");
