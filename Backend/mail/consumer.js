@@ -113,13 +113,13 @@ import "dotenv/config";
 import amqp from "amqplib";
 import nodemailer from "nodemailer";
 
-// ======================================================
+
 // 1. CREATE ONE SMTP TRANSPORTER
-// ======================================================
+
 
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
-  port: 587,
+  port: 465,
   secure: true,
   family: 4,
 
@@ -129,207 +129,114 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ======================================================
 // 2. VERIFY SMTP CONNECTION
-// ======================================================
+
 
 async function verifySMTP() {
   try {
     await transporter.verify();
-
     console.log("Gmail SMTP connection verified successfully");
   } catch (error) {
     console.error("Gmail SMTP verification failed:", error.message);
   }
 }
 
-// ======================================================
-// 3. SEND OTP EMAIL CONSUMER
-// ======================================================
+// 3. GENERIC CONSUMER WITH AUTO-RECONNECT
+// Before: on "close" it only logged, so after the first dropped
+// RabbitMQ connection (idle timeout / Render restart) the mail
+// service stayed running but NEVER consumed again -> no OTP mail.
+// Now: any close/error schedules a reconnect.
 
-export async function startSendOtpConsumer() {
-  try {
-    // Connect to RabbitMQ
-    const connection = await amqp.connect(process.env.RABBITMQ_URL);
+const RETRY_MS = 5000;
 
-    connection.on("error", (error) => {
-      console.error(
-        "RabbitMQ connection error:",
-        error.message
-      );
-    });
+function startConsumer(queueName, label) {
+  let retryTimer = null;
 
-    connection.on("close", () => {
-      console.log("RabbitMQ connection closed");
-    });
+  const retry = () => {
+    if (retryTimer) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      run();
+    }, RETRY_MS);
+  };
 
-    // Create channel
-    const channel = await connection.createChannel();
+  async function run() {
+    let connection;
 
-    channel.on("error", (error) => {
-      console.error(
-        "RabbitMQ channel error:",
-        error.message
-      );
-    });
+    try {
+      connection = await amqp.connect(process.env.RABBITMQ_URL);
 
-    // Process only ONE message at a time
-    await channel.prefetch(1);
+      connection.on("error", (error) => {
+        console.error(`[${label}] RabbitMQ connection error:`, error.message);
+      });
 
-    const queueName = "send-otp";
+      connection.on("close", () => {
+        console.log(`[${label}] RabbitMQ connection closed, reconnecting...`);
+        retry();
+      });
 
-    // Make sure queue exists
-    await channel.assertQueue(queueName, {
-      durable: true,
-    });
+      const channel = await connection.createChannel();
 
-    console.log(
-      "Mail Service consumer started listening for OTP emails"
-    );
+      channel.on("error", (error) => {
+        console.error(`[${label}] RabbitMQ channel error:`, error.message);
+      });
 
-    // Start consuming
-    channel.consume(queueName, async (msg) => {
-      if (!msg) return;
+      // channel died but connection alive -> close connection to rebuild both
+      channel.on("close", () => {
+        connection.close().catch(() => {});
+      });
 
-      try {
-        // Convert RabbitMQ message into object
-        const { to, subject, body } = JSON.parse(
-          msg.content.toString()
-        );
+      // Process only ONE message at a time
+      await channel.prefetch(1);
 
-        console.log(`Processing OTP email for: ${to}`);
+      await channel.assertQueue(queueName, { durable: true });
 
-        // Send email
-        await transporter.sendMail({
-          from: `Chat APP Manvendra <${process.env.GMAIL_USER}>`,
-          to,
-          subject,
-          text: body,
-        });
+      console.log(`Mail Service consumer started listening for ${label} emails`);
 
-        console.log(`OTP mail sent successfully to ${to}`);
+      await channel.consume(queueName, async (msg) => {
+        if (!msg) return;
 
-        // Message processed successfully
-        channel.ack(msg);
+        try {
+          const { to, subject, body } = JSON.parse(msg.content.toString());
 
-      } catch (error) {
-        console.error(
-          "Failed to send OTP email:",
-          error.message
-        );
+          console.log(`Processing ${label} email for: ${to}`);
 
-        /*
-          false = don't send to multiple consumers
-          false = don't put message back into queue
+          await transporter.sendMail({
+            from: `Chat APP Manvendra <${process.env.GMAIL_USER}>`,
+            to,
+            subject,
+            text: body,
+          });
 
-          This prevents an infinite retry loop.
-        */
-        channel.nack(msg, false, false);
-      }
-    });
-
-  } catch (error) {
-    console.error(
-      "Failed to start RabbitMQ OTP consumer:",
-      error.message
-    );
+          console.log(`${label} email sent successfully to ${to}`);
+          channel.ack(msg);
+        } catch (error) {
+          console.error(`Failed to send ${label} email:`, error.message);
+          // false = don't requeue (prevents infinite retry loop)
+          try {
+            channel.nack(msg, false, false);
+          } catch {
+            // channel already closed; message will be redelivered
+          }
+        }
+      });
+    } catch (error) {
+      console.error(`Failed to start ${label} consumer:`, error.message);
+      // clean up half-open connection, then retry
+      connection?.close().catch(() => {});
+      retry();
+    }
   }
+
+  return run();
 }
 
-// ======================================================
-// 4. SEND WELCOME EMAIL CONSUMER
-// ======================================================
-
-export async function startsendEmailLogin() {
-  try {
-    // Connect to RabbitMQ
-    const connection = await amqp.connect(
-      process.env.RABBITMQ_URL
-    );
-
-    connection.on("error", (error) => {
-      console.error(
-        "RabbitMQ connection error:",
-        error.message
-      );
-    });
-
-    connection.on("close", () => {
-      console.log("RabbitMQ connection closed");
-    });
-
-    // Create channel
-    const channel = await connection.createChannel();
-
-    channel.on("error", (error) => {
-      console.error(
-        "RabbitMQ channel error:",
-        error.message
-      );
-    });
-
-    // Process one email at a time
-    await channel.prefetch(1);
-
-    const queueName = "welcome-email";
-
-    // Make sure queue exists
-    await channel.assertQueue(queueName, {
-      durable: true,
-    });
-
-    console.log(
-      "Mail Service consumer started listening for sending welcome emails"
-    );
-
-    // Start consuming
-    channel.consume(queueName, async (msg) => {
-      if (!msg) return;
-
-      try {
-        // Convert message into object
-        const { to, subject, body } = JSON.parse(
-          msg.content.toString()
-        );
-
-        console.log(`Processing welcome email for: ${to}`);
-
-        // Send email
-        await transporter.sendMail({
-          from: `Chat APP Manvendra <${process.env.GMAIL_USER}>`,
-          to,
-          subject,
-          text: body,
-        });
-
-        console.log(
-          `Welcome email sent successfully to ${to}`
-        );
-
-        // Message processed successfully
-        channel.ack(msg);
-
-      } catch (error) {
-        console.error(
-          "Failed to send welcome email:",
-          error.message
-        );
-
-        // Remove failed message from queue
-        channel.nack(msg, false, false);
-      }
-    });
-
-  } catch (error) {
-    console.error(
-      "Failed to start RabbitMQ welcome email consumer:",
-      error.message
-    );
-  }
+export function startSendOtpConsumer() {
+  return startConsumer("send-otp", "OTP");
 }
 
-// ======================================================
-// 5. VERIFY SMTP WHEN FILE STARTS
-// ======================================================
+export function startsendEmailLogin() {
+  return startConsumer("welcome-email", "welcome");
+}
 
 verifySMTP();
