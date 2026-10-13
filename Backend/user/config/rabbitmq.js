@@ -1,110 +1,98 @@
-// import amqp from 'amqplib'
-// // amqp is a local variable
-// let channel ;
-
-// export async function connectRabbitMQ(){
-//     try{
-//         // for Docker 
-//         // const connection = await amqp.connect({
-//         //     protocol:"amqp",
-//         //     hostname:process.env.RabbitMQ_host,
-//         //     port:process.env.RabbitMQ_Communication_Port,
-//         //     username:process.env.RabbitMQ_Username,
-//         //     password:process.env.RabbitMQ_Password
-//         // })
-//         const connection = await amqp.connect(process.env.RABBITMQ_URL);
-//         channel = await connection.createChannel()
-//         console.log("RabbitMQ is successfully connected ✔️")
-//     }
-//     catch(error){
-//         console.log("Failed to connect to rabbitMQ",error)
-//     }
-// }
-
-// export async function publishToQueue (queueName,message){
-//     if(!channel){
-//         console.log("RabbitMQ channel is not initilaized")
-//         return ;
-//     }
-//     await channel.assertQueue(queueName,{durable:true})
-//     channel.sendToQueue(queueName,Buffer.from(JSON.stringify(message)),{
-//         persistent:true
-//     })
-// }
 import amqp from "amqplib";
 
+const QUEUES = ["send-otp", "welcome-email"];
+const RETRY_MS = 5000;
+
+let connection = null;
 let channel = null;
+let connecting = null;
+let retryTimer = null;
+
+function scheduleReconnect() {
+  if (retryTimer) return;
+  retryTimer = setTimeout(async () => {
+    retryTimer = null;
+    try {
+      await connectRabbitMQ();
+    } catch {
+      scheduleReconnect();
+    }
+  }, RETRY_MS);
+}
 
 export async function connectRabbitMQ() {
-  try {
-    const connection = await amqp.connect(process.env.RABBITMQ_URL);
+  // If a connect is already in progress, reuse it
+  if (connecting) return connecting;
 
-    connection.on("error", (error) => {
-      console.error("RabbitMQ connection error:", error.message);
-    });
+  connecting = (async () => {
+    try {
+      const conn = await amqp.connect(process.env.RABBITMQ_URL);
 
-    connection.on("close", () => {
-      console.log("RabbitMQ connection closed");
-      channel = null;
-    });
+      conn.on("error", (error) => {
+        console.error("RabbitMQ connection error:", error.message);
+      });
 
-    channel = await connection.createChannel();
+      // Idle/dropped connections used to leave `channel = null` forever.
+      // Now we reconnect automatically.
+      conn.on("close", () => {
+        console.log("RabbitMQ connection closed, reconnecting...");
+        if (connection === conn) {
+          connection = null;
+          channel = null;
+        }
+        scheduleReconnect();
+      });
 
-    channel.on("error", (error) => {
-      console.error("RabbitMQ channel error:", error.message);
-    });
+      const ch = await conn.createChannel();
 
-    await channel.assertQueue("send-otp", {
-      durable: true,
-    });
+      ch.on("error", (error) => {
+        console.error("RabbitMQ channel error:", error.message);
+      });
 
-    await channel.assertQueue("welcome-email", {
-      durable: true,
-    });
+      // If only the channel dies, close the connection so we rebuild both
+      ch.on("close", () => {
+        if (channel === ch) channel = null;
+        conn.close().catch(() => {});
+      });
 
-    console.log("RabbitMQ is successfully connected ✔️");
-  } catch (error) {
-    console.error("Failed to connect to RabbitMQ:", error.message);
+      for (const queue of QUEUES) {
+        await ch.assertQueue(queue, { durable: true });
+      }
 
-    // Very important:
-    // server ko pata chale ki RabbitMQ connect nahi hua
-    throw error;
-  }
+      connection = conn;
+      channel = ch;
+      console.log("RabbitMQ is successfully connected ✔️");
+    } catch (error) {
+      console.error("Failed to connect to RabbitMQ:", error.message);
+      throw error;
+    } finally {
+      connecting = null;
+    }
+  })();
+
+  return connecting;
 }
 
 export async function publishToQueue(queueName, message) {
-  // Don't silently continue
+  // Self-heal: if the channel was lost, try to reconnect once before failing
   if (!channel) {
-    throw new Error(
-      "RabbitMQ channel is not initialized"
-    );
+    await connectRabbitMQ();
   }
 
-  await channel.assertQueue(queueName, {
-    durable: true,
-  });
-
-  const messageBuffer = Buffer.from(
-    JSON.stringify(message)
-  );
+  if (!channel) {
+    throw new Error("RabbitMQ channel is not initialized");
+  }
 
   const sent = channel.sendToQueue(
     queueName,
-    messageBuffer,
-    {
-      persistent: true,
-    }
+    Buffer.from(JSON.stringify(message)),
+    { persistent: true }
   );
 
   if (!sent) {
-    throw new Error(
-      `RabbitMQ could not buffer message for queue: ${queueName}`
-    );
+    throw new Error(`RabbitMQ could not buffer message for queue: ${queueName}`);
   }
 
-  console.log(
-    `Message published to queue: ${queueName}`
-  );
-
+  console.log(`Message published to queue: ${queueName}`);
   return true;
 }
