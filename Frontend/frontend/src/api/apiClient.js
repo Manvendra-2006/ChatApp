@@ -1,6 +1,42 @@
 const userApiUrl = import.meta.env.VITE_USER_API_URL?.trim()
 const chatApiUrl = import.meta.env.VITE_CHAT_API_URL?.trim()
 
+// Render free services sleep when idle and take up to ~60s to wake.
+// 502/503/504 from the gateway mean "upstream not ready yet" -> retry.
+const RETRY_STATUSES = new Set([502, 503, 504])
+const RETRY_DELAYS_MS = [4000, 8000, 12000]
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Call once on app start: wakes gateway + all services while the user types.
+export function warmUpBackend() {
+  const base = userApiUrl?.replace(/\/+$/, '')
+  if (!base) return
+  fetch(`${base}/warmup`).catch(() => {})
+}
+
+async function fetchWithRetry(url, options) {
+  const isGet = (options.method || 'GET').toUpperCase() === 'GET'
+
+  for (let attempt = 0; ; attempt++) {
+    const canRetry = attempt < RETRY_DELAYS_MS.length
+    try {
+      const res = await fetch(url, options)
+      if (RETRY_STATUSES.has(res.status) && canRetry) {
+        await sleep(RETRY_DELAYS_MS[attempt])
+        continue
+      }
+      return res
+    } catch (error) {
+      // Network error: only auto-retry GET (a POST may already have been processed)
+      if (isGet && canRetry) {
+        await sleep(RETRY_DELAYS_MS[attempt])
+        continue
+      }
+      throw error
+    }
+  }
+}
+
 export class ApiError extends Error {
   constructor(message, status) {
     super(message)
@@ -29,7 +65,7 @@ export async function apiRequest(service, path, options = {}) {
   let response
 
   try {
-    response = await fetch(
+    response = await fetchWithRetry(
       `${baseUrl.replace(/\/+$/, '')}${path}`,
       {
         ...options,
