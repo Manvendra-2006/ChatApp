@@ -7,6 +7,12 @@ import { connectRabbitMQ } from "./config/rabbitmq.js";
 
 export const redisClient = createClient({
   url: process.env.REDIS_URL,
+  // Managed Redis (Upstash etc.) drops idle connections.
+  // Ping keeps it alive; reconnectStrategy brings it back if it drops.
+  pingInterval: 30_000,
+  socket: {
+    reconnectStrategy: (retries) => Math.min(retries * 200, 5000),
+  },
 });
 
 redisClient.on("error", (error) => {
